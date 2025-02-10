@@ -9,17 +9,18 @@ from .models import (
 
 @admin.register(Folder)
 class FolderAdmin(admin.ModelAdmin):
-    list_display = ("name", "parent", "created_at", "updated_at")
+    list_display = ("name", "parent", "created_at", "updated_at", "author")
     search_fields = ("name",)
     ordering = ("-created_at",)
+    readonly_fields = ("parent",)
 
 
 @admin.register(Slide)
 class SlideAdmin(admin.ModelAdmin):
-    list_display = ("name", "file", "folder", "created_at", "updated_at")
-    search_fields = ("name", "description")
+    list_display = ("name", "file", "folder", "created_at", "updated_at", "author")
+    search_fields = ("name", "information")
     ordering = ("-created_at",)
-
+    readonly_fields = ("folder", "image_root", "metadata")
     prepopulated_fields = {"name": ("file",)}
 
 

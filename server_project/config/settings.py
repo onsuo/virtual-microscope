@@ -15,6 +15,7 @@ import os
 import sys
 from pathlib import Path
 
+from django.contrib.messages import constants as messages
 from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -23,14 +24,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
-secret_file = os.path.join(BASE_DIR, "secrets.json")  # secrets.json 파일 위치를 명시
-
-with open(secret_file) as f:
-    secrets = json.loads(f.read())
+secrets_file_path = os.path.join(BASE_DIR, "secrets.json")
 
 
 def get_secret(setting):
     try:
+        with open(secrets_file_path) as f:
+            secrets = json.loads(f.read())
         return secrets[setting]
     except KeyError:
         error_msg = "Set the {} environment variable".format(setting)
@@ -45,11 +45,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
-
 # Application definition
-
-# Applications are in 'apps' folder
-sys.path.insert(0, os.path.join(BASE_DIR, "apps"))
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -58,10 +54,10 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "accounts",
-    "slides",
-    "slide_viewer",
-    "lectures",
+    "apps.accounts",
+    "apps.database",
+    "apps.lectures",
+    "apps.slide_viewer",
 ]
 
 MIDDLEWARE = [
@@ -94,7 +90,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
@@ -104,7 +99,6 @@ DATABASES = {
         "NAME": BASE_DIR / "db.sqlite3",
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -124,18 +118,14 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
 LANGUAGE_CODE = "en-us"
-
-TIME_ZONE = "UTC"
-
 USE_I18N = True
 
+TIME_ZONE = "Asia/Seoul"
 USE_TZ = True
-
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
@@ -147,18 +137,15 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static/"),
 ]
 
-
 # Media files
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media/")
 
-
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
 
 # Authentication
 
@@ -167,10 +154,7 @@ LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
-
 # Bootstrap Messages
-
-from django.contrib.messages import constants as messages
 
 messages.DEFAULT_TAGS.update(
     {

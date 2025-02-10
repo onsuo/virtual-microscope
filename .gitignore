@@ -7,3 +7,10 @@ media/
 db.sqlite3
 migrations/
 secrets.json
+
+# IDE
+.idea/
+.vscode/
+
+# Slides
+slides/

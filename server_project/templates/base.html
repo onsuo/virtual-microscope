@@ -1,4 +1,5 @@
 {% load static %}
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -18,30 +19,30 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body class="bg-light">
-    <header>
-        <nav class="navbar navbar-expand-lg navbar-light bg-light">
-            <div class="container">
-                <a class="navbar-brand" href="{% url 'home' %}">
-                    <img src="{% static 'img/logo.png' %}" height="30" class="d-inline-block align-top" alt="인제대학교 의과대학"></img>
-                    Virtual Microscope
-                </a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+<header>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'home' %}">
+                <img src="{% static 'img/logo.svg' %}" class="d-inline-block align-top" alt="인제대학교 의과대학">
+                Virtual Microscope
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
                     aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav me-auto">
-                        <!-- Your existing navigation items -->
-                    </ul>
-                    <ul class="navbar-nav">
-                        {% if user.is_admin %}
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <!-- Your existing navigation items -->
+                </ul>
+                <ul class="navbar-nav">
+                    {% if user.is_admin %}
                         <li class="nav-item">
                             <a class="nav-link" href="/admin">
                                 <i class="bi bi-gear"></i> Admin Site
                             </a>
                         </li>
-                        {% endif %}
-                        {% if user.is_authenticated %}
+                    {% endif %}
+                    {% if user.is_authenticated %}
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'accounts:profile' %}">
                                 <i class="bi bi-person"></i> Profile
@@ -55,7 +56,7 @@
                                 </button>
                             </form>
                         </li>
-                        {% else %}
+                    {% else %}
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'accounts:login' %}">
                                 <i class="bi bi-box-arrow-in-right"></i> Login
@@ -66,35 +67,78 @@
                                 <i class="bi bi-person-plus"></i> Register
                             </a>
                         </li>
-                        {% endif %}
-                    </ul>
-                </div>
+                    {% endif %}
+                </ul>
             </div>
-        </nav>        
-    </header>
-    
-    <main class="container py-4">
-        {% for message in messages %}
-        {% comment %}{% if not message.level_tag == 'success' %}{% endcomment %}
-        <div class="alert alert-{{ message.level_tag }} alert-dismissible" type="alert">
-            <div>{{ message.message }}</div>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
-        {% comment %}{% endif %}{% endcomment %}
+    </nav>
+</header>
+
+<main class="container py-4">
+    {% block content %}{% endblock %}
+</main>
+
+{% block extra_modal %}{% endblock %}
+
+<footer class="text-center py-3">
+    <small>&copy; 2024 SEMTLE, Inje University</small>
+</footer>
+
+<script src="{% static 'bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'admin/js/vendor/jquery/jquery.min.js' %}"></script>
+<script>
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-tooltip="tooltip"]');
+    const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl, {
+        trigger: 'hover',
+        delay: {"show": 500}
+    }));
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.setAttribute('data-bs-backdrop', 'static');
+        modal.setAttribute('data-bs-keyboard', 'false');
+
+        modal.addEventListener('submit', () => {
+            modal.querySelectorAll('button').forEach(button => {
+                button.disabled = true;
+            });
+        });
+    });
+
+    function showFeedback(message, type = "info") {
+        let feedbackContainer = document.getElementById("feedback-container");
+
+        // Create container if it doesn't exist
+        if (!feedbackContainer) {
+            feedbackContainer = document.createElement("div");
+            feedbackContainer.id = "feedback-container";
+            feedbackContainer.className = "position-fixed bottom-0 end-0 m-3 d-flex flex-column align-items-end";
+            feedbackContainer.style.zIndex = "1050";
+            document.body.appendChild(feedbackContainer);
+        }
+
+        // Create alert element
+        const feedbackDiv = document.createElement("div");
+        feedbackDiv.className = `alert alert-${type} p-2 mb-2`;
+        feedbackDiv.innerHTML = message;
+
+        // Add new alert to the top of the stack
+        feedbackContainer.prepend(feedbackDiv);
+
+        // Remove alert after 2 seconds
+        setTimeout(() => {
+            feedbackDiv.remove();
+            // Remove container if empty
+            if (feedbackContainer.children.length === 0) {
+                feedbackContainer.remove();
+            }
+        }, 5000);
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        {% for message in messages %}
+            showFeedback("{{ message.message|escapejs }}", "{{ message.level_tag }}");
         {% endfor %}
-
-        {% block content %}{% endblock %}
-    </main>
-
-    <footer class="text-center py-3">
-        <small>&copy; 2024 SEMTLE, Inje University</small>
-    </footer>
-
-    <script src="{% static 'bootstrap/js/bootstrap.bundle.min.js' %}"></script>
-    <script>
-        const tooltipTriggerList = document.querySelectorAll('[data-bs-tooltip="tooltip"]');
-        const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl, { trigger: 'hover', delay: { "show": 500 } }));
-    </script>
-    {% block extra_js %}{% endblock %}
+    });
+</script>
+{% block extra_js %}{% endblock %}
 </body>
 </html>

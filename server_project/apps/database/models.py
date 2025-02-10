@@ -3,6 +3,7 @@ import shutil
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from openslide import OpenSlide
 from openslide.deepzoom import DeepZoomGenerator
 
@@ -10,6 +11,15 @@ from openslide.deepzoom import DeepZoomGenerator
 class FolderManager(models.Manager):
     def base_folders(self):
         return self.filter(parent__isnull=True)
+
+    def editable_base_folders(self, user):
+        if user.is_admin():
+            return self.base_folders()
+        return (
+            self.base_folders()
+            .filter(groupprofile__group__in=user.groups.all())
+            .distinct()
+        )
 
 
 class Folder(models.Model):
@@ -42,6 +52,16 @@ class Folder(models.Model):
     def __str__(self):
         return self.get_full_path()
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        for slide in self.get_all_slides():
+            slide.update_lectures()
+
+    def delete(self, *args, **kwargs):
+        if not self.is_empty():
+            raise Exception("Folder is not empty. Cannot delete.")
+        super().delete(*args, **kwargs)
+
     def get_full_path(self):
         if self.parent:
             return f"{self.parent.get_full_path()}/{self.name}"
@@ -58,17 +78,23 @@ class Folder(models.Model):
             current_folder = current_folder.parent
         return current_folder
 
-    def get_department(self):
-        """Get the department this folder belongs to"""
-        return self.get_base_folder().department
+    def get_group(self):
+        """Get the group of this folder"""
+        return self.get_base_folder().groupprofile.group
 
-    def user_has_access(self, user):
-        """Check if the user has access to this folder"""
+    def user_can_edit(self, user):
+        """Check if the user can edit this folder"""
         if user.is_admin():
             return True
-        elif user.is_publisher() and user.department:
-            return self.get_department() == user.department
-        return False
+        return self.get_group() in user.groups.all()
+
+    def get_all_slides(self, recursive=False):
+        """Get all slides in this folder and its subfolders"""
+        slides = list(self.slides.all())
+        if recursive:
+            for subfolder in self.subfolders.all():
+                slides.extend(subfolder.get_all_slides(recursive=True))
+        return slides
 
     def is_empty(self):
         """Check if the folder and the subfolders don't have slides"""
@@ -90,9 +116,21 @@ class Folder(models.Model):
 
 
 class SlideManager(models.Manager):
-    def get_root_slides(self):
+    def root_slides(self):
         """Get slides that aren't in any folder"""
         return self.filter(folder__isnull=True)
+
+    def viewable_by_folder(self, user, folder):
+        """Get slides by folder that are accessible to the user"""
+        if not folder:
+            if user.is_admin():
+                return self.filter(folder__isnull=True)
+            else:
+                return self.filter(folder__isnull=True, is_public=True)
+        elif folder.user_can_edit(user):
+            return self.filter(folder=folder)
+        else:
+            return self.filter(folder=folder, is_public=True)
 
 
 class Slide(models.Model):
@@ -105,10 +143,10 @@ class Slide(models.Model):
         max_length=250,
         help_text="Name of the slide.",
     )
-    description = models.TextField(
+    information = models.TextField(
         blank=True,
         null=True,
-        help_text="Description of the slide.",
+        help_text="Information of the slide.",
     )
     image_root = models.CharField(
         max_length=250,
@@ -125,11 +163,15 @@ class Slide(models.Model):
         null=True,
     )
     folder = models.ForeignKey(
-        Folder,
+        "database.Folder",
         on_delete=models.SET_NULL,
         related_name="slides",
         blank=True,
         null=True,
+    )
+    is_public = models.BooleanField(
+        default=False,
+        help_text="Whether the slide is public or not.",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -137,8 +179,6 @@ class Slide(models.Model):
     objects = SlideManager()
 
     class Meta:
-        verbose_name = "Slide"
-        verbose_name_plural = "Slides"
         ordering = ("name",)
 
     def __str__(self):
@@ -170,6 +210,8 @@ class Slide(models.Model):
             if need_slide_processing:
                 self.process_slide()
 
+            self.update_lectures()
+
         except Exception as e:
             raise Exception(f"Failed to save slide: {str(e)}")
 
@@ -194,16 +236,13 @@ class Slide(models.Model):
 
         status = {
             "needs_repair": False,
-            "file_exists": False,
-            "dzi_exists": False,
+            "file_exists": os.path.exists(self.file.path),
+            "dzi_exists": os.path.exists(self.get_dzi_path()),
             "tiles_complete": False,
             "thumbnail_exists": False,
             "associated_image_exists": False,
             "metadata_valid": False,
         }
-
-        status["file_exists"] = os.path.exists(self.file.path)
-        status["dzi_exists"] = os.path.exists(self.get_dzi_path())
 
         # Check tiles
         try:
@@ -214,7 +253,9 @@ class Slide(models.Model):
             status["tiles_complete"] = False
 
         status["thumbnail_exists"] = os.path.exists(self.get_thumbnail_path())
-        status["associated_image_exists"] = os.path.exists(self.get_associated_image_path())
+        status["associated_image_exists"] = os.path.exists(
+            self.get_associated_image_path()
+        )
         status["metadata_valid"] = self._verify_metadata()
 
         status["needs_repair"] = not all(
@@ -252,7 +293,7 @@ class Slide(models.Model):
                     and status["associated_image_exists"]
                 ):
                     self._delete_directory(image_directory)
-                    self._generate_images(slide, image_directory)
+                    self._generate_images(slide)
 
                 if not status["metadata_valid"]:
                     self._save_metadata(slide)
@@ -260,11 +301,32 @@ class Slide(models.Model):
             return self.check_integrity()
 
         except Exception as e:
-            raise Exception(f"Failed to repair slide {self.name} (id={self.id}): {str(e)}")
+            raise Exception(
+                f"Failed to repair slide {self.name} (id={self.id}): {str(e)}"
+            )
 
-    def user_has_access(self, user):
-        """Check if the user has access to the slide"""
-        return self.folder.user_has_access(user) if self.folder else user.is_admin()
+    def update_lectures(self):
+        for lecture_content in self.lecture_contents.all():
+            if not self.user_can_view(lecture_content.lecture.author):
+                lecture_content.delete()
+
+    def get_group(self):
+        """Get the group of this slide"""
+        if self.folder:
+            return self.folder.get_group()
+        return None
+
+    def user_can_edit(self, user):
+        """Check if the user can edit the slide"""
+        if user.is_admin():
+            return True
+        elif self.folder:
+            return self.folder.user_can_edit(user)
+        return False
+
+    def user_can_view(self, user):
+        """Check if the user can view the slide"""
+        return self.is_public or self.user_can_edit(user)
 
     def get_image_directory(self):
         """Get the path to the image directory"""
@@ -284,12 +346,14 @@ class Slide(models.Model):
 
     def get_associated_image_path(self):
         """Get the path to the associated image"""
-        return os.path.join(settings.MEDIA_ROOT, self.image_root, "associated_image.png")
+        return os.path.join(
+            settings.MEDIA_ROOT, self.image_root, "associated_image.png"
+        )
 
     def _generate_images(self, slide: OpenSlide):
         """Generate related images for the slide"""
 
-        FORMAT = "jpeg"
+        tile_format = "jpeg"  # jpeg or png
 
         try:
             # Setup directory
@@ -299,7 +363,7 @@ class Slide(models.Model):
             deepzoom = DeepZoomGenerator(slide)
 
             # Create DZI file
-            dzi = deepzoom.get_dzi(FORMAT)
+            dzi = deepzoom.get_dzi(tile_format)
             with open(self.get_dzi_path(), "w") as f:
                 f.write(dzi)
 
@@ -311,12 +375,16 @@ class Slide(models.Model):
                 cols, rows = deepzoom.level_tiles[level]
                 for col in range(cols):
                     for row in range(rows):
-                        tile_path = os.path.join(level_dir, f"{col}_{row}.{FORMAT}")
+                        tile_path = os.path.join(
+                            level_dir, f"{col}_{row}.{tile_format}"
+                        )
                         tile = deepzoom.get_tile(level, (col, row))
                         tile.save(tile_path)
 
             # Save thumbnail and associated image
-            slide.get_thumbnail((256, 256)).save(self.get_thumbnail_path())
+            thumbnail_size = (256, 256)
+            thumbnail = slide.get_thumbnail(thumbnail_size)
+            thumbnail.resize(thumbnail_size).save(self.get_thumbnail_path())
             slide.associated_images.get("macro").save(self.get_associated_image_path())
 
         except Exception as e:
@@ -347,7 +415,9 @@ class Slide(models.Model):
                 return False
 
             cols, rows = deepzoom.level_tiles[level]
-            expected_tiles = set(f"{col}_{row}.jpeg" for col in range(cols) for row in range(rows))
+            expected_tiles = set(
+                f"{col}_{row}.jpeg" for col in range(cols) for row in range(rows)
+            )
             existing_tiles = set(os.listdir(level_dir))
             if not expected_tiles.issubset(existing_tiles):
                 return False
@@ -376,7 +446,7 @@ class Tag(models.Model):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100, unique=True)
     slides = models.ManyToManyField(
-        "Slide",
+        "database.Slide",
         related_name="tags",
         blank=True,
     )

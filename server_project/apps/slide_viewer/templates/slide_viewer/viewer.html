@@ -4,141 +4,153 @@
 {% block title %}{{ slide.name }}{% endblock %}
 
 {% block extra_head %}
-<script src="{% static 'slide_viewer/openseadragon/openseadragon.min.js' %}"></script>
+    <script src="{% static 'slide_viewer/openseadragon/openseadragon.min.js' %}"></script>
 {% endblock extra_head %}
 
+
 {% block extra_css %}
-<style>
-    .viewer-container {
-        position: relative;
-        background-color: #000;
-        border-radius: 8px;
-        overflow: hidden;
-    }
-    .controls-overlay {
-        position: absolute;
-        top: 10px;
-        left: 10px;
-        z-index: 1000;
-        background-color: rgba(255, 255, 255, 0.8);
-        padding: 10px;
-        border-radius: 4px;
-    }
-    .btn-control {
-        margin-right: 5px;
-    }
-</style>
+    <style>
+        .viewer-container {
+            position: relative;
+            background-color: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .controls-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .btn-control {
+            margin-right: 5px;
+        }
+    </style>
 {% endblock extra_css %}
 
+
 {% block content %}
-<div class="row mb-4">
-    <div class="col">
-        <h1 class="h2">{{ slide.name }}</h1>
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h2">{{ slide.name }}</h1>
+        </div>
     </div>
-</div>
-
-<div class="row mb-4">
-    <div class="col">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Description</h5>
-                <p class="card-text">{{ slide.description }}</p>
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Description</h5>
+                    <p class="card-text">{{ slide.information }}</p>
+                </div>
             </div>
         </div>
     </div>
-</div>
-
-<div class="row">
-    <div class="col">
-        <div class="viewer-container">
-            <div class="controls-overlay">
-                <button class="btn btn-sm btn-primary btn-control" onclick="toggleNav()" title="Toggle Navigator">
-                    <i class="bi bi-compass"></i> Navigator
-                </button>
-                <button class="btn btn-sm btn-secondary btn-control" onclick="viewer.viewport.goHome()" title="Reset View">
-                    <i class="bi bi-house"></i> Home
-                </button>
-                <button class="btn btn-sm btn-secondary btn-control" onclick="toggleFullScreen()" title="Full Screen">
-                    <i class="bi bi-fullscreen"></i> Full Screen
-                </button>
+    <div class="row">
+        <div class="col">
+            <div class="viewer-container">
+                <div class="controls-overlay">
+                    <button class="btn btn-sm btn-primary btn-control" onclick="toggleNav()" title="Toggle Navigator">
+                        <i class="bi bi-compass"></i> Navigator
+                    </button>
+                    <button class="btn btn-sm btn-secondary btn-control" onclick="viewer.viewport.goHome()"
+                            title="Reset View">
+                        <i class="bi bi-house"></i> Home
+                    </button>
+                    <button class="btn btn-sm btn-secondary btn-control" onclick="toggleFullScreen()"
+                            title="Full Screen">
+                        <i class="bi bi-fullscreen"></i> Full Screen
+                    </button>
+                </div>
+                <div id="openseadragon-container" style="width: 100%; height: 80vh;"></div>
             </div>
-            <div id="openseadragon-container" style="width: 100%; height: 80vh;"></div>
         </div>
     </div>
-</div>
 {% endblock content %}
 
+
 {% block extra_js %}
-<script type="text/javascript">
-    var viewer = OpenSeadragon({
-        id: "openseadragon-container",
-        tileSources: "{{ dzi_url }}",
-        prefixUrl: "{% static 'slide_viewer/openseadragon/images/' %}",
-        showNavigator: true,
-        navigatorAutoFade: false,
-        debugMode: false,
-        showNavigationControl: true,
-        navigationControlAnchor: OpenSeadragon.ControlAnchor.TOP_RIGHT,
-        zoomInButton: 'zoom-in',
-        zoomOutButton: 'zoom-out',
-        homeButton: 'home',
-        fullPageButton: 'full-page',
-        nextButton: 'next',
-        previousButton: 'previous',
-        showRotationControl: true,
-        gestureSettingsMouse: {
-            clickToZoom: true,
-            dblClickToZoom: true,
-            pinchToZoom: true,
-            scrollToZoom: true
-        }
-    });
+    <script type="text/javascript">
+        const annotation_data = JSON.parse('{{ annotation|escapejs }}')
+        const SAVE_ANNOTATION_URL = {% url 'slide_viewer:save_annotation' %}
+        const LOAD_ANNOTATION_LIST_URL = {% url '' %}
+        const SLIDE_VIEWER_URL = {% url 'slide_viewer:slide_view' slide_id=0 %}
 
-    var navShown = true;
-    function toggleNav() {
-        if (navShown) {
-            viewer.navigator.element.style.display = "none";
-        } else {
-            viewer.navigator.element.style.display = "inline-block";
-        }
-        navShown = !navShown;
-    }
+        var viewer = OpenSeadragon({
+            id: "openseadragon-container",
+            tileSources: "{{ dzi_url }}",
+            prefixUrl: "{% static 'slide_viewer/openseadragon/images' %}",
+            showNavigator: true,
+            navigatorAutoFade: false,
+            debugMode: false,
+            showNavigationControl: true,
+            navigationControlAnchor: OpenSeadragon.ControlAnchor.TOP_RIGHT,
+            zoomInButton: 'zoom-in',
+            zoomOutButton: 'zoom-out',
+            homeButton: 'home',
+            fullPageButton: 'full-page',
+            nextButton: 'next',
+            previousButton: 'previous',
+            showRotationControl: true,
+            gestureSettingsMouse: {
+                clickToZoom: true,
+                dblClickToZoom: true,
+                pinchToZoom: true,
+                scrollToZoom: true
+            }
+        });
 
-    function toggleFullScreen() {
-        if (!document.fullscreenElement) {
-            document.getElementById('openseadragon-container').requestFullscreen()
-                .catch(err => {
-                    console.log(`Error attempting to enable full-screen mode: ${err.message}`);
-                });
-        } else {
-            document.exitFullscreen();
-        }
-    }
+        var navShown = true;
 
-    // Add keyboard controls
-    document.addEventListener('keydown', function(e) {
-        switch(e.key) {
-            case 'n':
-            case 'N':
-                toggleNav();
-                break;
-            case 'f':
-            case 'F':
-                toggleFullScreen();
-                break;
-            case 'h':
-            case 'H':
-                viewer.viewport.goHome();
-                break;
+        function toggleNav() {
+            if (navShown) {
+                viewer.navigator.element.style.display = "none";
+            } else {
+                viewer.navigator.element.style.display = "inline-block";
+            }
+            navShown = !navShown;
         }
-    });
 
-    // Add touch gesture support
-    let touchStartX = 0;
-    let touchStartY = 0;
-    document.getElementById('openseadragon-container').addEventListener('touchstart', function(e) {
-        touchStartX = e.changedTouches[0].screenX;
-        touchStartY = e.changedTouches[0].screenY;
-    });
-</script>
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.getElementById('openseadragon-container').requestFullscreen()
+                    .catch(err => {
+                        console.log(`Error attempting to enable full-screen mode: ${err.message}`);
+                    });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // Add keyboard controls
+        document.addEventListener('keydown', function (e) {
+            switch (e.key) {
+                case 'n':
+                case 'N':
+                    toggleNav();
+                    break;
+                case 'f':
+                case 'F':
+                    toggleFullScreen();
+                    break;
+                case 'h':
+                case 'H':
+                    viewer.viewport.goHome();
+                    break;
+            }
+        });
+
+        // Add touch gesture support
+        let touchStartX = 0;
+        let touchStartY = 0;
+        document.getElementById('openseadragon-container').addEventListener('touchstart', function (e) {
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+        });
+    </script>
+    <script src="{% static 'slide_viewer/viewer.js' %}" type="text/javascript"></script>
 {% endblock extra_js %}

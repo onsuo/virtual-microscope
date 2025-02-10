@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            {% for crumb in breadcrumbs %}
+                <li class="breadcrumb-item">
+                    <a href="{% url 'database:database' %}?folder={{ crumb.id }}">{{ crumb.name }}</a>
+                </li>
+            {% endfor %}
+        </ol>
+    </nav>
+    <!-- Folder Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">
+            {% if current_folder %}
+                {{ current_folder.name }}
+            {% else %}
+                Database
+            {% endif %}
+        </h4>
+        <div class="btn-group">
+            {% if editable %}
+                {% if current_folder %}
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                            data-bs-target="#newFolderModal">
+                        <i class="bi bi-folder-plus"></i> New Folder
+                    </button>
+                {% endif %}
+                <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#uploadSlideModal">
+                    <i class="bi bi-upload"></i> Upload Slide
+                </button>
+            {% endif %}
+        </div>
+    </div>
+    <!-- Folder Contents -->
+    {% if items %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Created</th>
+                    <th scope="col">Updated</th>
+                    <th scope="col">Author</th>
+                    <th scope="col" class="text-end">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for item in items %}
+                    <tr>
+                        <td>
+                            {% if item.type == 'folder' %}
+                                <i class="bi bi-folder text-warning me-2"></i>
+                                <a href="{% url 'database:database' %}?folder={{ item.id }}"
+                                   class="text-decoration-none">{{ item.name }}</a>
+                            {% else %}
+                                <img src="{% url 'database:get_thumbnail' slide_id=item.id %}" height=25>
+                                <a href="{% url 'slide_viewer:slide_view' slide_id=item.id %}"
+                                   class="text-decoration-none">{{ item.name }}</a>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.type|title }}</td>
+                        <td>{{ item.created_at|date:"Y-m-d H:i" }}</td>
+                        <td>{{ item.updated_at|date:"Y-m-d H:i" }}</td>
+                        <td>{{ item.author|title }}</td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm">
+                                {% if item.type == 'folder' %}
+                                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal"
+                                            data-bs-target="#detailFolderModal" data-bs-tooltip="tooltip"
+                                            title="Details" onclick="setupFolderDetails({{ item.id }})">
+                                        <i class="bi bi-info-circle"></i>
+                                    </button>
+                                    {% if editable and current_folder %}
+                                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal"
+                                                data-bs-target="#renameFolderModal" data-bs-tooltip="tooltip"
+                                                title="Rename" onclick="setupFolder({{ item.id }}, '{{ item.name }}')">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-warning"
+                                                data-bs-toggle="modal" data-bs-target="#moveFolderModal"
+                                                data-bs-tooltip="tooltip" title="Move"
+                                                onclick="setupFolderMove({{ item.id }}, '{{ item.name }}')">
+                                            <i class="bi bi-folder"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger"
+                                                data-bs-toggle="modal" data-bs-target="#deleteFolderModal"
+                                                data-bs-tooltip="tooltip" title="Delete"
+                                                onclick="setupFolder({{ item.id }}, '{{ item.name }}')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    {% endif %}
+                                {% else %}
+                                    <button type="button" class="btn btn-outline-secondary"
+                                            data-bs-toggle="modal" data-bs-target="#detailSlideModal"
+                                            data-bs-tooltip="tooltip" title="Details"
+                                            onclick="setupSlideDetails({{ item.id }})">
+                                        <i class="bi bi-info-circle"></i>
+                                    </button>
+                                    {% if editable %}
+                                        <button type="button" class="btn btn-outline-primary"
+                                                data-bs-toggle="modal" data-bs-target="#editSlideModal"
+                                                data-bs-tooltip="tooltip" title="Edit"
+                                                onclick="setupSlideEdit({{ item.id }}, '{{ item.name }}', '{{ item.information }}', {{ item.is_public }})">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-warning"
+                                                data-bs-toggle="modal" data-bs-target="#moveSlideModal"
+                                                data-bs-tooltip="tooltip" title="Move"
+                                                onclick="setupSlideMove({{ item.id }}, '{{ item.name }}')">
+                                            <i class="bi bi-folder"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger"
+                                                data-bs-toggle="modal" data-bs-target="#deleteSlideModal"
+                                                data-bs-tooltip="tooltip" title="Delete"
+                                                onclick="setupSlide({{ item.id }}, '{{ item.name }}')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="alert alert-info" role="alert">
+            <i class="bi bi-info-circle me-2"></i>This folder is empty.
+        </div>
+    {% endif %}
+{% endblock content %}
+
+
+{% block extra_modal %}
+    <!-- New Folder Modal -->
+    <div class="modal fade" id="newFolderModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Folder</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'database:create_folder' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" name="parent_id" value="{{ current_folder.id }}">
+                        <label for="newFolderName" class="form-label">Folder Name</label>
+                        <input type="text" class="form-control" id="newFolderName" name="name" required>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Rename Folder Modal -->
+    <div class="modal fade" id="renameFolderModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Rename Folder</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'database:rename_folder' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" name="folder_id" id="renameFolderId" value="">
+                        <p>Change from <span id="renameFolderNameDisplay" style="font-weight: bold;"></span> to: </p>
+                        <label for="renameFolderName" class="form-label mt-2">Folder Name</label>
+                        <input type="text" class="form-control" id="renameFolderName" name="new_name" required>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Rename</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Move Folder Modal -->
+    <div class="modal fade" id="moveFolderModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Move Folder</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'database:move_folder' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" name="folder_id" id="moveFolderId" value="">
+                        <p>Moving folder <span id="moveFolderNameDisplay" style="font-weight: bold;"></span> to: </p>
+                        <div id="folderTreeContainer_folder" class="border p-3 folder-tree-container"
+                             style="max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Move</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Delete Folder Modal -->
+    <div class="modal fade" id="deleteFolderModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete Folder</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'database:delete_folder' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" name="folder_id" id="deleteFolderId" value="">
+                        <p>Are you sure to delete <span id="deleteFolderNameDisplay" style="font-weight: bold;"></span>?
+                        </p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Delete</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Detail Folder Modal -->
+    <div class="modal fade" id="detailFolderModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Folder Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <dl class="row" id="folderDetails">
+                        <dt class="col-3">Name:</dt>
+                        <dd class="col-9" id="detailFolderName"></dd>
+                        <dt class="col-3">Contents:</dt>
+                        <dd class="col-9" id="detailFolderContents"></dd>
+                        <dt class="col-3">Author:</dt>
+                        <dd class="col-9" id="detailFolderAuthor"></dd>
+                        <dt class="col-3">Created:</dt>
+                        <dd class="col-9" id="detailFolderCreated"></dd>
+                        <dt class="col-3">Updated:</dt>
+                        <dd class="col-9" id="detailFolderUpdated"></dd>
+                    </dl>
+                    <div id="detailFolderLoading" class="text-center mt-3 d-none">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Upload Slide Modal -->
+    <div class="modal fade" id="uploadSlideModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Upload Slide</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'database:upload_slide' %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" name="folder_id" value="{{ current_folder.id }}">
+                        <div id="selectSlide">
+                            {% if current_folder %}
+                                <p>Upload to <span style="font-weight: bold;">{{ current_folder.name }}</span></p>
+                            {% endif %}
+                            <label for="uploadSlideName" class="form-label mt-2">Slide Name</label>
+                            <input type="text" class="form-control" id="uploadSlideName" name="slide_name"
+                                   placeholder="Same with filename when left blank.">
+                            <label for="uploadSlideInformation" class="form-label mt-2">Slide Information</label>
+                            <input type="text" class="form-control" id="uploadSlideInformation"
+                                   name="slide_information">
+                            <label for="slideFile" class="form-label mt-2">Select Slide</label>
+                            <input type="file" name="slideFile" class="form-control" id="slideFile" accept=".ndpi">
+                            <label for="uploadSlideVisibility" class="form-label mt-2">Visibility</label>
+                            <select class="form-select" id="uploadSlideVisibility" name="is_public" required>
+                                <option value="none">(Select)</option>
+                                <option value="false">Private</option>
+                                <option value="true">Public</option>
+                            </select>
+                        </div>
+                        <div id="uploadSlideLoading" class="text-center mt-3 d-none">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Uploading Slide...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Upload</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Edit Slide Modal -->
+    <div class="modal fade" id="editSlideModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Slide</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'database:edit_slide' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" name="slide_id" id="editSlideId" value="">
+                        <label for="editSlideName" class="form-label mt-2">Slide Name</label>
+                        <input type="text" class="form-control" id="editSlideName" name="new_name"
+                               placeholder="Same with filename when left blank.">
+                        <label for="editSlideInformation" class="form-label mt-2">Slide Information</label>
+                        <input type="text" class="form-control" id="editSlideInformation" name="new_information">
+                        <label for="editSlideVisibility" class="form-label mt-2">Visibility</label>
+                        <select class="form-select" id="editSlideVisibility" name="new_is_public" required>
+                            <option value="false">Private</option>
+                            <option value="true">Public</option>
+                        </select>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Upload</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Move Slide Modal -->
+    <div class="modal fade" id="moveSlideModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Move Slide</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'database:move_slide' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" name="slide_id" id="moveSlideId" value="">
+                        <p>Moving slide <span id="moveSlideNameDisplay" style="font-weight: bold;"></span> to: </p>
+                        <div id="folderTreeContainer_slide" class="border p-3 folder-tree-container"
+                             style="max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Move</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Delete Slide Modal -->
+    <div class="modal fade" id="deleteSlideModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete Slide</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'database:delete_slide' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" name="slide_id" id="deleteSlideId" value="">
+                        <p>Are you sure to delete <span id="deleteSlideNameDisplay" style="font-weight: bold;"></span>?
+                        </p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Delete</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Detail Slide Modal -->
+    <div class="modal fade" id="detailSlideModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Slide Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <dl class="row" id="slideDetails">
+                        <dt class="col-3">Name:</dt>
+                        <dd class="col-9" id="detailSlideName"></dd>
+                        <dt class="col-3">Information:</dt>
+                        <dd class="col-9" id="detailSlideInformation"></dd>
+                        <dt class="col-3">Author:</dt>
+                        <dd class="col-9" id="detailSlideAuthor"></dd>
+                        <dt class="col-3">Folder:</dt>
+                        <dd class="col-9" id="detailSlideFolder"></dd>
+                        <dt class="col-3">Metadata:</dt>
+                        <dd class="col-9" id="detailSlideMetadata"></dd>
+                        <dt class="col-3">Associated Image:</dt>
+                        <dd class="col-9">
+                            <img src="" class="img-fluid" id="detailSlideAssociatedImage" alt="">
+                        </dd>
+                        <dt class="col-3">File:</dt>
+                        <dd class="col-9" id="detailSlideFile"></dd>
+                        <dt class="col-3">Visibility:</dt>
+                        <dd class="col-9" id="detailSlideVisibility"></dd>
+                        <dt class="col-3">Created:</dt>
+                        <dd class="col-9" id="detailSlideCreated"></dd>
+                        <dt class="col-3">Updated:</dt>
+                        <dd class="col-9" id="detailSlideUpdated"></dd>
+                    </dl>
+                    <div id="detailSlideLoading" class="text-center mt-3 d-none">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock extra_modal %}
+
+
+{% block extra_js %}
+    <script>
+        const FOLDER_DETAILS_URL = "{% url 'database:folder_details' %}";
+        const SLIDE_DETAILS_URL = "{% url 'database:slide_details' %}";
+        const FOLDER_TREE_URL = "{% url 'database:get_folder_tree' %}";
+        const GET_ASSOCIATED_IMAGE_URL = "{% url 'database:get_associated_image' slide_id=0 %}"
+        const CSRF_TOKEN = "{{ csrf_token }}";
+    </script>
+    <script src="{% static 'database/database.js' %}" type="text/javascript"></script>
+{% endblock extra_js %}
