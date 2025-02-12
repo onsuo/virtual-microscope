@@ -28,15 +28,15 @@ class SlideView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
         try:
             annotation = Annotation.objects.get(id=annotation_id)
             if annotation.slide != slide:
-                annotation = None
-        except Annotation.DoesNotExist:
+                raise Annotation.DoesNotExist
+        except Annotation.DoesNotExist or AttributeError:
             annotation = None
 
         context["slide"] = slide
         context["dzi_url"] = reverse_lazy(
             "slide_viewer:get_dzi", kwargs={"slide_id": slide_id}
         )
-        context["annotation"] = json.dumps(annotation.data)
+        context["annotation"] = json.dumps(annotation.data) if annotation else "{}"
         context["editable"] = slide.user_can_edit(self.request.user)
         return context
 
@@ -94,7 +94,7 @@ def save_annotation(request, slide_id):
                     return HttpResponse(f'Annotation "{name}" updated successfully.')
                 else:
                     return HttpResponse("You are not allowed to edit this annotation.")
-            except Annotation.DoesNotExist:
+            except Annotation.DoesNotExist or AttributeError:
                 return HttpResponse("Annotation not found.")
         else:
             Annotation.objects.create(
