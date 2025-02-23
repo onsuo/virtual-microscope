@@ -3,7 +3,6 @@ import shutil
 
 from django.conf import settings
 from django.db import models
-from django.db.models import Q
 from openslide import OpenSlide
 from openslide.deepzoom import DeepZoomGenerator
 
@@ -15,23 +14,26 @@ class FolderManager(models.Manager):
     def editable_base_folders(self, user):
         if user.is_admin():
             return self.base_folders()
-        return (
-            self.base_folders()
-            .filter(groupprofile__group__in=user.groups.all())
-            .distinct()
-        )
+        return self.base_folders().filter(groupprofile__group__in=user.groups.all())
+
+    def editable(self, user):
+        if user.is_admin():
+            return self.all()
+        folders = self.editable_base_folders(user)
+        for folder in self.editable_base_folders(user):
+            folders |= folder.get_descendents()
+        return folders
+
+    def viewable(self, user):
+        return self.all()
 
 
 class Folder(models.Model):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=250)
-    parent = models.ForeignKey(
-        "self",
-        on_delete=models.CASCADE,
-        related_name="subfolders",
-        blank=True,
-        null=True,
-    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -40,8 +42,13 @@ class Folder(models.Model):
         blank=True,
         null=True,
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        related_name="subfolders",
+        blank=True,
+        null=True,
+    )
 
     objects = FolderManager()
 
@@ -88,6 +95,13 @@ class Folder(models.Model):
             return True
         return self.get_group() in user.groups.all()
 
+    def get_descendents(self):
+        """Get all folders in this folder and its subfolders"""
+        folders = [self.subfolders.all()]
+        for subfolder in self.subfolders.all():
+            folders.extend(subfolder.get_descendents())
+        return folders
+
     def get_all_slides(self, recursive=False):
         """Get all slides in this folder and its subfolders"""
         slides = list(self.slides.all())
@@ -132,6 +146,24 @@ class SlideManager(models.Manager):
         else:
             return self.filter(folder=folder, is_public=True)
 
+    def editable(self, user):
+        """Get slides that are accessible to the user"""
+        if user.is_admin():
+            return self.all()
+        slides = self.none()
+        for folder in Folder.objects.editable(user):
+            slides |= folder.slides
+        return slides
+
+    def viewable(self, user):
+        """Get slides that are accessible to the user"""
+        if user.is_admin():
+            return self.all()
+        slides = self.root_slides().filter(is_public=True)
+        for folder in Folder.objects.viewable(user):
+            slides |= self.viewable_by_folder(user, folder)
+        return slides
+
 
 class Slide(models.Model):
     id = models.AutoField(primary_key=True)
@@ -154,6 +186,13 @@ class Slide(models.Model):
         help_text="Relative path to the image directory.",
     )
     metadata = models.JSONField(blank=True, null=True)
+    is_public = models.BooleanField(
+        default=False,
+        help_text="Whether the slide is public or not.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -169,12 +208,6 @@ class Slide(models.Model):
         blank=True,
         null=True,
     )
-    is_public = models.BooleanField(
-        default=False,
-        help_text="Whether the slide is public or not.",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     objects = SlideManager()
 
@@ -196,9 +229,6 @@ class Slide(models.Model):
                     self._delete_directory(old_instance.get_image_directory())
                 else:
                     need_slide_processing = False
-
-            if not self.name:
-                self.name = os.path.splitext(os.path.basename(self.file.name))[0]
 
             super().save(*args, **kwargs)
 

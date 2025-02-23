@@ -1,219 +1,312 @@
-const newFolderModal = document.getElementById('newFolderModal');
-const newFolderName = document.getElementById('newFolderName');
-newFolderModal.addEventListener('shown.bs.modal', function () {
-    newFolderName.focus();
-});
-newFolderModal.addEventListener('hidden.bs.modal', function () {
-    newFolderName.value = null;
-});
-
-const renameFolderModal = document.getElementById('renameFolderModal');
-const renameFolderName = document.getElementById('renameFolderName');
-renameFolderModal.addEventListener('shown.bs.modal', function () {
-    renameFolderName.focus();
-});
-renameFolderModal.addEventListener('hidden.bs.modal', function () {
-    renameFolderName.value = null;
-});
-
-function setupFolder(folderId, folderName) {
-    document.getElementById('renameFolderId').value = folderId;
-    document.getElementById('deleteFolderId').value = folderId;
-
-    document.getElementById('renameFolderNameDisplay').textContent = folderName;
-    document.getElementById('deleteFolderNameDisplay').textContent = folderName;
-}
-
-function setupFolderMove(folderId, folderName) {
-    document.getElementById('moveFolderId').value = folderId;
-    document.getElementById('moveFolderNameDisplay').textContent = folderName;
-
-    loadFolderTree('folder');
-}
-
-function setupFolderDetails(folderId) {
-    // Show loading spinner
-    document.getElementById('detailFolderLoading').classList.remove('d-none');
-    document.getElementById('folderDetails').classList.add('d-none');
-
-    fetch(FOLDER_DETAILS_URL, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': CSRF_TOKEN,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-            folder_id: folderId,
-        }),
-    })
-        .then(response => response.json())
-        .then(data => {
-            // Hide loading spinner
-            document.getElementById('detailFolderLoading').classList.add('d-none');
-            document.getElementById('folderDetails').classList.remove('d-none');
-
-            document.getElementById('detailFolderName').textContent = data.name;
-            document.getElementById('detailFolderCreated').textContent = data.created_at;
-            document.getElementById('detailFolderUpdated').textContent = data.updated_at;
-            document.getElementById('detailFolderAuthor').textContent = data.author;
-            document.getElementById('detailFolderContents').textContent = `${data.subfolder_count} folders, ${data.slide_count} slides`;
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            document.querySelector('.folder-details').innerHTML = '<div class="alert alert-danger">Error loading folder details</div>';
-            document.querySelector('.folder-details').classList.remove('d-none');
-            document.getElementById('detailFolderLoading').classList.add('d-none');
-        });
-}
-
-const uploadSlideModal = document.getElementById('uploadSlideModal');
-uploadSlideModal.addEventListener('submit', function () {
-    const selectSlide = document.getElementById('selectSlide');
-    const uploadSlideLoading = document.getElementById('uploadSlideLoading');
-
-    selectSlide.classList.add('d-none');
-    uploadSlideLoading.classList.remove('d-none');
-});
-uploadSlideModal.addEventListener('hidden.bs.modal', function () {
-    document.getElementById('uploadSlideName').value = null;
-    document.getElementById('uploadSlideInformation').value = null;
-    document.getElementById('slideFile').value = null;
-});
-
-function setupSlide(slideId, slideName) {
-    document.getElementById('deleteSlideId').value = slideId;
-    document.getElementById('deleteSlideNameDisplay').textContent = slideName;
-}
-
-function setupSlideEdit(slideId, slideName, slideInformation, isSlidePublic) {
-    document.getElementById('editSlideId').value = slideId;
-    document.getElementById('editSlideName').value = slideName;
-    document.getElementById('editSlideInformation').value = slideInformation;
-    $("select[id=editSlideVisibility]").val(isSlidePublic ? 'true' : 'false').prop("selected", true)
-}
-
-function setupSlideMove(slideId, slideName) {
-    document.getElementById('moveSlideId').value = slideId;
-    document.getElementById('moveSlideNameDisplay').textContent = slideName;
-
-    loadFolderTree('slide');
-}
-
-function setupSlideDetails(slideId) {
-    // Show loading spinner
-    document.getElementById('detailSlideLoading').classList.remove('d-none');
-    document.getElementById('slideDetails').classList.add('d-none');
-
-    fetch(SLIDE_DETAILS_URL, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': CSRF_TOKEN,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-            slide_id: slideId,
-        }),
-    })
-        .then(response => response.json())
-        .then(data => {
-            // Hide loading spinner
-            document.getElementById('detailSlideLoading').classList.add('d-none');
-            document.getElementById('slideDetails').classList.remove('d-none');
-
-            // Populate slide details
-            document.getElementById('detailSlideName').textContent = data.name;
-            document.getElementById('detailSlideInformation').textContent = data.information || '-';
-            document.getElementById('detailSlideCreated').textContent = data.created_at;
-            document.getElementById('detailSlideUpdated').textContent = data.updated_at;
-            document.getElementById('detailSlideAuthor').textContent = data.author;
-            document.getElementById('detailSlideFolder').textContent = data.folder;
-            document.getElementById('detailSlideFile').textContent = data.file;
-            document.getElementById('detailSlideVisibility').textContent = data.is_public ? "Public" : "Private";
-            document.getElementById('detailSlideAssociatedImage').src = GET_ASSOCIATED_IMAGE_URL.replace('0', data.id);
-
-            const metadataElement = document.getElementById('detailSlideMetadata');
-            if (data.metadata) {
-                try {
-                    // If metadata is a string, parse it; if it's already an object, use it directly
-                    const metadataObj = typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata;
-
-                    // Format the metadata with proper indentation
-                    const formattedMetadata = JSON.stringify(metadataObj, null, 2);
-
-                    // Create a pre element for formatted display
-                    metadataElement.innerHTML = `<pre class="mb-0">${formattedMetadata}</pre>`;
-                } catch (e) {
-                    // If parsing fails, display as is
-                    metadataElement.textContent = 'couldn\'t load metadata';
-                }
-            } else {
-                metadataElement.textContent = '-';
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            document.querySelector('.slide-details').innerHTML = '<div class="alert alert-danger">Error loading slide details</div>';
-            document.querySelector('.slide-details').classList.remove('d-none');
-            document.getElementById('detailSlideLoading').classList.add('d-none');
-        });
-}
-
-function loadFolderTree(type) {
-    const container = document.getElementById('folderTreeContainer_' + type);
-    container.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div> Loading...';
-
-    // Fetch folder structure from server
-    fetch(FOLDER_TREE_URL)
-        .then(response => response.json())
-        .then(data => {
-            container.innerHTML = '<ul class="list-unstyled">' + (type === 'folder' || !data.show_root ? '' : `<li class="mb-2">
-                    <div class="form-check">
-                        <input class="form-check-input folder-select" type="radio" 
-                               name="destination_folder_id" id="folder_root" value="" required>
-                        <label class="form-check-label" for="folder_root">
-                            <i class="bi bi-folder text-warning me-2"></i> Root
-                        </label>
-                    </div>
-                </li>`) + buildFolderTree(data.tree, type) + '</ul>';
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            container.innerHTML = `<div class="text-danger">${error}</div>`;
-        });
-}
-
-function toggleCollapseIcon(folderId, available) {
-    const icon = document.getElementById('collapse-icon-' + folderId);
-    if (!available) return;
-    icon.classList.toggle('bi-chevron-right');
-    icon.classList.toggle('bi-chevron-down');
-}
-
-function buildFolderTree(folders, type) {
-    let html = '';
-    folders.forEach(folder => {
-        let folderAvailable = type === 'folder' ? folder.id !== document.getElementById('moveFolderId').value : true;
-        let collapseAvailable = folder.subfolders.length && folderAvailable;
-        html += `
-            <li class="mb-2">
-                <div class="form-check mb-2">
-                    <i class="bi bi-chevron-right ${collapseAvailable ? '' : 'text-muted'}" 
-                        data-bs-toggle="collapse" href="#collapse-${folder.id}" 
-                        id="collapse-icon-${folder.id}" role="button" onclick="toggleCollapseIcon(${folder.id}, ${collapseAvailable})"></i>                               
-                    <input class="form-check-input folder-select" 
-                        type="radio" id="folder-${folder.id}" 
-                        name="destination_folder_id" value="${folder.id}" 
-                        ${folderAvailable ? '' : 'disabled'} required>
-                    <label class="form-check-label" for="folder-${folder.id}">
-                        <i class="bi bi-folder text-warning me-2"></i> ${folder.name}
-                    </label>
-                </div>
-                <ul class="list-unstyled ms-4 collapse" id="collapse-${folder.id}">
-                    ${collapseAvailable ? buildFolderTree(folder.subfolders, type) : ''}
-                </ul>
-            </li>`;
+function handleModalShow(modalId, formId) {
+    document.getElementById(modalId).addEventListener("show.bs.modal", function (event) {
+        let button = event.relatedTarget;
+        document.getElementById(formId).dataset.url = button.dataset.url;
     });
-    return html;
 }
+
+handleModalShow("renameFolderModal", "renameFolderForm");
+handleModalShow("deleteFolderModal", "deleteFolderForm");
+handleModalShow("editSlideModal", "editSlideForm");
+handleModalShow("deleteSlideModal", "deleteSlideForm");
+
+document.getElementById("renameFolderModal").addEventListener("show.bs.modal", function (event) {
+    let button = event.relatedTarget;
+
+    fetch(button.dataset.url, {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': CSRF_TOKEN,
+        },
+    })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errorData => {
+                    console.error('Error fetching slide infos:', errorData.details);
+                    throw new Error('Failed to fetch slide infos');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            document.getElementById("renameFolderName").value = data.name;
+        })
+        .catch(error => {
+            console.error('Error fetching slide infos:', error);
+        });
+});
+
+document.getElementById("detailFolderModal").addEventListener("show.bs.modal", function (event) {
+    let button = event.relatedTarget;
+
+    fetch(button.dataset.url, {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': CSRF_TOKEN,
+        },
+    })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errorData => {
+                    console.error('Error fetching folder details:', errorData.details);
+                    throw new Error('Failed to fetch folder details');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            document.getElementById('detail-folder-name').textContent = data.name || '-';
+            document.getElementById('detail-folder-contents').textContent = `${data.subfolders_count || 0} subfolders, ${data.lectures_count || 0} lectures`;
+            document.getElementById('detail-folder-author').textContent = data.author || '-';
+            document.getElementById('detail-folder-parent').textContent = data.parent_path || '-';
+            document.getElementById('detail-folder-created').textContent = data.created_at_formatted || '-';
+            document.getElementById('detail-folder-updated').textContent = data.updated_at_formatted || '-';
+        })
+        .catch(error => {
+            console.error('Error fetching folder details:', error);
+        });
+});
+
+document.getElementById("editSlideModal").addEventListener("show.bs.modal", function (event) {
+    let button = event.relatedTarget;
+
+    fetch(button.dataset.url, {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': CSRF_TOKEN,
+        },
+    })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errorData => {
+                    console.error('Error fetching slide infos:', errorData.details);
+                    throw new Error('Failed to fetch slide infos');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            document.getElementById("editSlideName").value = data.name;
+            document.getElementById("editSlideInformation").value = data.information;
+            document.getElementById("editSlideVisibility").value = data.is_public;
+        })
+        .catch(error => {
+            console.error('Error fetching slide infos:', error);
+        });
+});
+
+document.getElementById("detailSlideModal").addEventListener("show.bs.modal", function (event) {
+    let button = event.relatedTarget;
+
+    fetch(button.dataset.url, {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': CSRF_TOKEN,
+        },
+    })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errorData => {
+                    console.error('Error fetching folder details:', errorData.details);
+                    throw new Error('Failed to fetch folder details');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            document.getElementById('detail-slide-name').textContent = data.name;
+            document.getElementById('detail-slide-information').textContent = data.information || "-";
+            document.getElementById('detail-slide-author').textContent = data.author || "-";
+            document.getElementById('detail-slide-folder').textContent = data.folder_name;
+            const metadata = document.getElementById('detail-slide-metadata')
+            const metadataContents = document.createElement('dl');
+            metadataContents.classList.add('row');
+            for (const [key, value] of Object.entries(data.metadata)) {
+                const dt = document.createElement('dt');
+                dt.classList.add('col-sm-3');
+                dt.textContent = key;
+                const dd = document.createElement('dd');
+                dd.classList.add('col-sm-9');
+                dd.textContent = value;
+                metadataContents.appendChild(dt);
+                metadataContents.appendChild(dd);
+            }
+            metadata.innerHTML = '';
+            metadata.appendChild(metadataContents);
+            document.getElementById('detail-slide-associated-image').src = data.associated_image;
+            document.getElementById('detail-slide-file').textContent = data.file_name;
+            document.getElementById('detail-slide-visibility').textContent = data.is_public ? 'Public' : 'Private';
+            document.getElementById('detail-slide-created').textContent = data.created_at_formatted;
+            document.getElementById('detail-slide-updated').textContent = data.updated_at_formatted;
+        })
+        .catch(error => {
+            console.error('Error fetching folder details:', error);
+        });
+});
+
+function handleMoveModalShow(modalId, formId, itemType) {
+    document.getElementById(modalId).addEventListener("show.bs.modal", function (event) {
+        let button = event.relatedTarget;
+        document.getElementById(formId).dataset.url = button.dataset.url;
+
+        fetch(button.dataset.urlTree, {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+            },
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(errorData => {
+                        console.error('Error fetching folder tree:', errorData.details);
+                        throw new Error('Failed to fetch folder tree');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                const treeContainer = this.querySelector('.folder-tree-container');
+                treeContainer.innerHTML = '';
+                if (data.length === 0) {
+                    const alert = document.createElement('div');
+                    alert.classList.add('alert', 'alert-warning', 'mt-3');
+                    alert.role = 'alert';
+                    alert.textContent = 'No folders available.';
+                    treeContainer.appendChild(alert);
+                    return;
+                }
+                if (itemType === "folder" && !data[0].id) {
+                    treeContainer.appendChild(createTree(data[0].subfolders, button.dataset.itemId, itemType));
+                } else {
+                    treeContainer.appendChild(createTree(data, button.dataset.itemId, itemType));
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching folder tree:', error);
+            });
+    });
+}
+
+function createTree(data, itemId, type) {
+    if (!["folder", "slide"].includes(type)) return;
+
+    const ul = document.createElement('ul');
+    ul.classList.add('list-unstyled');
+
+    data.forEach(item => {
+        let selectable = type === "folder" ? item.id.toString() !== itemId : true;
+        let showChildren = item.subfolders?.length > 0 && selectable;
+
+        const li = document.createElement('li');
+        li.classList.add('mb-2');
+
+        const div = document.createElement('div');
+        div.classList.add('form-check', 'mb-2');
+
+        const input = document.createElement('input');
+        input.classList.add('form-check-input');
+        input.type = 'radio';
+        input.id = `folder-${item.id}`;
+        input.name = type === "folder" ? "parent" : "folder";
+        input.value = item.id;
+        input.required = true;
+        input.disabled = !selectable;
+
+        const icon = document.createElement('i');
+        icon.classList.add('bi', 'bi-chevron-right', 'me-2', 'text-muted');
+        icon.addEventListener('click', () => {
+            if (!showChildren) return;
+            icon.classList.toggle('bi-chevron-right');
+            icon.classList.toggle('bi-chevron-down');
+        });
+
+        const label = document.createElement('label');
+        label.classList.add('form-check-label');
+        label.htmlFor = input.id;
+        label.innerHTML = `<i class="bi bi-folder text-warning me-2"></i> ${item.name}`;
+
+        let ulChild = document.createElement('ul');
+        if (showChildren) {
+            icon.classList.remove('text-muted');
+            icon.dataset.bsToggle = 'collapse';
+            icon.setAttribute('href', '#collapse-' + item.id);
+            icon.role = 'button';
+
+            ulChild = createTree(item.subfolders, itemId, type);
+            ulChild.classList.add('list-unstyled', 'ms-4', 'collapse');
+            ulChild.id = 'collapse-' + item.id;
+        }
+
+        div.append(input, icon, label);
+        li.append(div, ulChild);
+        ul.appendChild(li);
+    });
+
+    return ul;
+}
+
+handleMoveModalShow("moveFolderModal", "moveFolderForm", "folder");
+handleMoveModalShow("moveSlideModal", "moveSlideForm", "slide");
+
+function submitForm(form, method) {
+    const contents = form.querySelector('[data-type="contents"]');
+    const loading = form.querySelector('[data-type="loading"]');
+
+    contents?.classList.add('d-none');
+    loading?.classList.remove('d-none');
+
+    fetch(form.dataset.url, {
+        method: method,
+        headers: {
+            "X-CSRFToken": CSRF_TOKEN,
+        },
+        body: new FormData(form),
+    })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errorData => {
+                    console.error(`Error (${method}):`, errorData.details);
+                    throw new Error(`Failed to ${method.toLowerCase()} item`);
+                });
+            }
+            location.reload();
+        })
+        .catch(error => {
+            console.error(`Error (${method}):`, error.message);
+            alert("Failed to submit the form. Please try again.");
+            location.reload();
+        });
+}
+
+document.getElementById("newFolderForm").addEventListener("submit", function (event) {
+    event.preventDefault();
+    submitForm(this, "POST");
+});
+document.getElementById("renameFolderForm").addEventListener("submit", function (event) {
+    event.preventDefault();
+    submitForm(this, "PATCH");
+});
+document.getElementById("moveFolderForm").addEventListener("submit", function (event) {
+    event.preventDefault();
+    submitForm(this, "PATCH");
+});
+document.getElementById("deleteFolderForm").addEventListener("submit", function (event) {
+    event.preventDefault();
+    submitForm(this, "DELETE");
+});
+document.getElementById("newSlideForm").addEventListener("submit", function (event) {
+    event.preventDefault();
+    submitForm(this, "POST");
+});
+document.getElementById("editSlideForm").addEventListener("submit", function (event) {
+    event.preventDefault();
+    submitForm(this, "PATCH");
+});
+document.getElementById("moveSlideForm").addEventListener("submit", function (event) {
+    event.preventDefault();
+    submitForm(this, "PATCH");
+});
+document.getElementById("deleteSlideForm").addEventListener("submit", function (event) {
+    event.preventDefault();
+    submitForm(this, "DELETE");
+});

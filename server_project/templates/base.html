@@ -87,6 +87,8 @@
 <script src="{% static 'bootstrap/js/bootstrap.bundle.min.js' %}"></script>
 <script src="{% static 'admin/js/vendor/jquery/jquery.min.js' %}"></script>
 <script>
+    const CSRF_TOKEN = '{{ csrf_token }}';
+
     const tooltipTriggerList = document.querySelectorAll('[data-bs-tooltip="tooltip"]');
     const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl, {
         trigger: 'hover',
@@ -126,7 +128,6 @@
         // Remove alert after 2 seconds
         setTimeout(() => {
             feedbackDiv.remove();
-            // Remove container if empty
             if (feedbackContainer.children.length === 0) {
                 feedbackContainer.remove();
             }

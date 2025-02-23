@@ -75,14 +75,15 @@
 
 {% block extra_js %}
     <script type="text/javascript">
-        const annotation_data = JSON.parse('{{ annotation|escapejs }}')
-        const SAVE_ANNOTATION_URL = "{% url 'slide_viewer:save_annotation' %}"
-        // const LOAD_ANNOTATION_LIST_URL = {#"{% url '' %}"#}
-        const SLIDE_VIEWER_URL = "{% url 'slide_viewer:slide_view' slide_id=0 %}"
+        let slideDescription = '{{ annotation.description }}';
+        let slideAnnotation = {}
+        {% if annotation.data %}
+            slideAnnotation = {{ annotation.data|safe }};
+        {% endif %}
 
         var viewer = OpenSeadragon({
             id: "openseadragon-container",
-            tileSources: "{{ dzi_url }}",
+            tileSources: "{% url 'api:slide-dzi' pk=slide.id %}",
             prefixUrl: "{% static 'slide_viewer/openseadragon/images' %}/",
             showNavigator: true,
             navigatorAutoFade: false,

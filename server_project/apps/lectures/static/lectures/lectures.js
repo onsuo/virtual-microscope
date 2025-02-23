@@ -1,53 +1,64 @@
-function setupLectureDetail(lectureId) {
-    fetch(LECTURE_DETAIL_URL, {
-        method: 'POST',
+document.getElementById("detailLectureModal").addEventListener("show.bs.modal", function (event) {
+    let button = event.relatedTarget;
+
+    fetch(button.dataset.url, {
+        method: 'GET',
         headers: {
             'X-CSRFToken': CSRF_TOKEN,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
         },
-        body: JSON.stringify({
-            lecture_id: lectureId,
-        }),
     })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errorData => {
+                    console.error('Error fetching lecture details:', errorData.details);
+                    throw new Error('Failed to fetch lecture details');
+                });
+            }
+            return response.json();
+        })
         .then(data => {
-            document.getElementById('detail-lecture-name').textContent = data['name'];
-            document.getElementById('detail-lecture-description').textContent = data['description'] || '-';
-            document.getElementById('detail-lecture-contents').textContent = data['slides_count'] + ' database';
-            document.getElementById('detail-lecture-author').textContent = data['author'] || '-';
-            document.getElementById('detail-lecture-groups').textContent = data['groups'];
-            document.getElementById('detail-lecture-activity').textContent = data['is_active'] ? 'On' : 'Off';
-            document.getElementById('detail-lecture-created').textContent = data['created_at'];
-            document.getElementById('detail-lecture-updated').textContent = data['updated_at'];
+            document.getElementById('detail-lecture-name').textContent = data.name || '-';
+            document.getElementById('detail-lecture-description').textContent = data.description || '-';
+            document.getElementById('detail-lecture-contents').textContent = `${data.slides_count || 0} slides`;
+            document.getElementById('detail-lecture-author').textContent = data.author || '-';
+            document.getElementById('detail-lecture-groups').textContent = data.group_names || '-';
+            document.getElementById('detail-lecture-activity').textContent = data.is_active ? 'On' : 'Off';
+            document.getElementById('detail-lecture-created').textContent = data.created_at_formatted || '-';
+            document.getElementById('detail-lecture-updated').textContent = data.updated_at_formatted || '-';
         })
         .catch(error => {
-            console.error('Error:', error);
+            console.error('Error fetching lecture details:', error);
         });
-}
+});
 
-function toggleLectureActivity(lectureId) {
-    $.ajax({
-        url: TOGGLE_LECTURE_ACTIVITY_URL,
-        type: 'POST',
-        data: {
-            'csrfmiddlewaretoken': CSRF_TOKEN,
-            'lecture-id': lectureId,
+document.querySelectorAll('.toggle-activity-btn').forEach((button) => button.addEventListener('click', function () {
+    fetch(this.dataset.url, {
+        method: 'PATCH',
+        headers: {
+            'X-CSRFToken': CSRF_TOKEN,
         },
-        success: function (data) {
-            const icon = document.getElementById('lecture-activity-icon-' + lectureId);
-            const updated = document.getElementById('lecture-updated-' + lectureId);
-
-            if (data['is_active']) {
-                icon.classList.remove('bi-toggle-off');
-                icon.classList.add('bi-toggle-on');
-                icon.nextSibling.textContent = ' On ';
-            } else {
-                icon.classList.remove('bi-toggle-on');
-                icon.classList.add('bi-toggle-off');
-                icon.nextSibling.textContent = ' Off ';
+    })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errorData => {
+                    console.error('Error toggling lecture activity:', errorData.details);
+                    throw new Error('Failed to toggle lecture activity');
+                });
             }
-            updated.textContent = data['updated_at'];
-        }
-    });
-}
+            return response.json();
+        })
+        .then(data => {
+            const isActive = data.is_active;
+            const icon = this.querySelector('i');
+            const updated = this.closest('tr').querySelector('.updated-at');
+
+            icon.classList.toggle("bi-toggle-on", isActive);
+            icon.classList.toggle("bi-toggle-off", !isActive);
+            icon.nextSibling.textContent = isActive ? " On " : " Off ";
+
+            updated.textContent = data.updated_at_formatted;
+        })
+        .catch(error => {
+            console.error('Error toggling lecture activity:', error);
+        });
+}));

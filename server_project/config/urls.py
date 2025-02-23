@@ -27,4 +27,5 @@ urlpatterns = [
     path("database/", include("apps.database.urls")),
     path("accounts/", include("apps.accounts.urls")),
     path("lectures/", include("apps.lectures.urls")),
+    path("api/", include("config.api_urls")),
 ]

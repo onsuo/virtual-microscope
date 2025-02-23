@@ -9,23 +9,23 @@ class LectureFolderManager(models.Manager):
     def editable_base_folders(self, user):
         if user.is_admin():
             return self.base_folders()
-        return (
-            self.base_folders()
-            .filter(groupprofile__group__in=user.groups.all())
-            .distinct()
-        )
+        return self.base_folders().filter(user=user)
+
+    def editable(self, user):
+        if user.is_admin():
+            return self.all()
+        return self.filter(get_owner=user)
+
+    def viewable(self, user):
+        return self.editable(user)
 
 
 class LectureFolder(models.Model):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=250)
-    parent = models.ForeignKey(
-        "self",
-        on_delete=models.CASCADE,
-        related_name="subfolders",
-        blank=True,
-        null=True,
-    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -34,8 +34,13 @@ class LectureFolder(models.Model):
         blank=True,
         null=True,
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        related_name="subfolders",
+        blank=True,
+        null=True,
+    )
 
     objects = LectureFolderManager()
 
@@ -136,6 +141,7 @@ class Lecture(models.Model):
         blank=True,
         null=True,
     )
+
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -148,8 +154,8 @@ class Lecture(models.Model):
         "lectures.LectureFolder",
         on_delete=models.CASCADE,
         related_name="lectures",
-        blank=True,
-        null=True,
+        blank=False,
+        null=False,
     )
     groups = models.ManyToManyField(
         "auth.Group",
@@ -222,8 +228,12 @@ class LectureContent(models.Model):
         return f"{self.order} of {self.lecture}"
 
     def save(self, *args, **kwargs):
-        if self.annotation.slide != self.slide if self.annotation else False:
-            raise ValueError(
-                "Annotation must be on the same slide with the selected slide"
-            )
+        if not self.slide.user_can_view(self.lecture.author):
+            raise ValueError("Slide must be viewable by the lecture author")
+        if self.annotation:
+            if (
+                self.annotation.slide != self.slide
+                or not self.annotation.user_can_view(self.lecture.author)
+            ):
+                self.annotation = None
         super().save(*args, **kwargs)

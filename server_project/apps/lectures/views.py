@@ -1,25 +1,19 @@
-import json
-
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.auth.mixins import (
     LoginRequiredMixin,
     UserPassesTestMixin,
     PermissionRequiredMixin,
 )
 from django.contrib.auth.models import Group
-from django.http import JsonResponse
 from django.shortcuts import redirect, get_object_or_404
 from django.urls import reverse_lazy
-from django.utils import timezone
 from django.views.generic import ListView
 
 from apps.accounts.models import GroupProfile
 from apps.database.models import Slide, Folder
-from apps.lectures.models import Lecture, LectureContent, LectureFolder
+from apps.lectures.models import Lecture, LectureFolder
 
 
-class LectureListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+class LectureBulletinsView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
     template_name = "lectures/lectures.html"
     context_object_name = "lectures"
     permission_required = "lectures.view_lecture"
@@ -68,7 +62,7 @@ class LectureDatabaseView(
         if not self.request.user.is_admin() and not self.get_folder():
             folder = self.request.user.base_lecture_folder
             return redirect(
-                reverse_lazy("lectures:lecture_database")
+                reverse_lazy("lectures:lecture-database")
                 + f"?folder={folder.id or None}"
             )
         return super().dispatch(request, *args, **kwargs)
@@ -180,133 +174,3 @@ class LectureEditView(
         context["items"] = sorted(items, key=lambda x: (x.type, x.name.lower()))
 
         return context
-
-
-@login_required
-@permission_required("lectures.add_lecture")
-def create_lecture(request):
-    if request.method == "POST":
-        name = request.POST.get("name")
-        folder_id = request.POST.get("folder-id")
-
-        try:
-            if folder_id:
-                folder = LectureFolder.objects.get(id=folder_id)
-                if folder.user_can_edit(request.user):
-                    lecture = Lecture.objects.create(
-                        name=name, author=request.user, folder=folder
-                    )
-                    messages.success(
-                        request,
-                        f'Lecture "{name}" created in "{folder.name}" successfully.',
-                    )
-                else:
-                    messages.error(
-                        request, "You don't have permission to create lecture here."
-                    )
-            elif request.user.is_admin():
-                lecture = Lecture.objects.create(name=name, author=request.user)
-                messages.success(request, f'Lecture "{name}" created successfully.')
-        except Exception as e:
-            messages.error(request, f"Failed to create lecture: {str(e)}")
-
-        return redirect("lectures:lecture_edit", lecture_id=lecture.id)
-
-
-@login_required
-@permission_required("lectures.change_lecture")
-def edit_lecture(request):
-    if request.method == "POST":
-        lecture_id = request.POST.get("lecture-id")
-        name = request.POST.get("name")
-        description = request.POST.get("description")
-        groups = json.loads(request.POST.get("groups", "[]"))
-        contents = json.loads(request.POST.get("contents", "[]"))
-
-        try:
-            lecture = Lecture.objects.get(id=lecture_id)
-            if lecture.user_can_edit(request.user):
-                lecture.name = name
-                lecture.description = description
-                lecture.save()
-
-                lecture.groups.set(Group.objects.filter(id__in=groups))
-
-                lecture.contents.all().delete()
-
-                for new_content in contents:
-                    LectureContent.objects.create(
-                        lecture=lecture,
-                        slide_id=new_content["slide_id"],
-                        annotation_id=new_content["annotation_id"] or None,
-                        order=new_content["order"],
-                    )
-
-                return JsonResponse({"status": "success"})
-
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
-
-    return JsonResponse({"error": "Invalid request"}, status=400)
-
-
-@login_required
-@permission_required("lectures.delete_lecture")
-def delete_lecture(request):
-    if request.method == "POST":
-        lecture_id = request.POST.get("lecture-id")
-        lecture = Lecture.objects.get(id=lecture_id)
-        if lecture.user_can_edit(request.user):
-            lecture.delete()
-            messages.success(request, f"Lecture {lecture.name} deleted successfully")
-        else:
-            messages.error(request, "You are not authorized to delete this lecture")
-
-        return redirect(request.META.get("HTTP_REFERER", "lectures:lecture_database"))
-
-
-@login_required
-@permission_required("lectures.change_lecture")
-def toggle_lecture_activity(request):
-    if request.method == "POST":
-        lecture_id = request.POST.get("lecture-id")
-        lecture = Lecture.objects.get(id=lecture_id)
-        if lecture.user_can_edit(request.user):
-            lecture.is_active = not lecture.is_active
-            lecture.save()
-        return JsonResponse(
-            {
-                "is_active": lecture.is_active,
-                "updated_at": timezone.localtime(lecture.updated_at).strftime(
-                    "%Y-%m-%d %H:%M"
-                ),
-            }
-        )
-
-
-@login_required
-@permission_required("lectures.view_lecture")
-def lecture_details(request):
-    if request.method == "POST":
-        data = json.loads(request.body)
-        lecture_id = data.get("lecture_id")
-        lecture = Lecture.objects.get(id=lecture_id)
-        if lecture.user_can_edit(request.user):
-            return JsonResponse(
-                {
-                    "name": lecture.name,
-                    "description": lecture.description,
-                    "slides_count": lecture.get_slides().count(),
-                    "author": lecture.author.username or "-",
-                    "groups": ",".join([group.name for group in lecture.groups.all()])
-                    or "-",
-                    "is_active": lecture.is_active,
-                    "created_at": timezone.localtime(lecture.created_at).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    ),
-                    "updated_at": timezone.localtime(lecture.updated_at).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    ),
-                }
-            )
-        return JsonResponse({})
