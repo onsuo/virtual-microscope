@@ -14,10 +14,19 @@ class LectureFolderManager(models.Manager):
     def editable(self, user):
         if user.is_admin():
             return self.all()
-        return self.filter(get_owner=user)
+        folders = self.editable_base_folders(user)
+        for folder in self.editable_base_folders(user):
+            folders |= self.descendents(folder)
+        return folders
 
     def viewable(self, user):
         return self.editable(user)
+
+    def descendents(self, folder):
+        folders = folder.subfolders.all()
+        for subfolder in folder.subfolders.all():
+            folders |= self.descendents(subfolder)
+        return folders
 
 
 class LectureFolder(models.Model):

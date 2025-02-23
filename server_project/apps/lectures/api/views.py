@@ -23,14 +23,14 @@ class LectureFolderViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         folder = serializer.save(author=self.request.user)
-        logger.info(f"Folder '{folder.name}' created by {self.request.user}")
+        logger.info(f"Lecture folder '{folder.name}' created by {self.request.user}")
 
     def perform_update(self, serializer):
         folder = self.get_object()
         self._check_edit_permissions(folder)
 
         folder = serializer.save()
-        logger.info(f"Folder '{folder.name}' updated by {self.request.user}")
+        logger.info(f"Lecture folder '{folder.name}' updated by {self.request.user}")
 
     def perform_destroy(self, instance):
         self._check_edit_permissions(instance)
@@ -40,7 +40,7 @@ class LectureFolderViewSet(viewsets.ModelViewSet):
 
         name = instance.name
         instance.delete()
-        logger.info(f"Folder '{name}' deleted by {self.request.user}")
+        logger.info(f"Lecture folder '{name}' deleted by {self.request.user}")
 
     def retrieve(self, request, *args, **kwargs):
         folder = self.get_object()

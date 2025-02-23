@@ -35,7 +35,7 @@
                             {% if lecture.is_editable %}
                                 <button type="button" class="btn btn-sm btn-outline-primary toggle-activity-btn"
                                         data-bs-tooltip="tooltip" title="Toggle Activity"
-                                        data-url="{% url 'lecture-toggle-activity' pk=lecture.id %}">
+                                        data-url="{% url 'api:lecture-toggle-activity' pk=lecture.id %}">
                                     <i class="bi bi-toggle-{% if lecture.is_active %}on{% else %}off{% endif %}"></i>
                                     {% if lecture.is_active %}On{% else %}Off{% endif %}
                                 </button>
@@ -43,7 +43,7 @@
                             <div class="btn-group btn-group-sm">
                                 <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal"
                                         data-bs-target="#detailLectureModal" data-bs-tooltip="tooltip"
-                                        title="Details" data-url="{% url 'lecture-detail' pk=lecture.id %}">
+                                        title="Details" data-url="{% url 'api:lecture-detail' pk=lecture.id %}">
                                     <i class="bi bi-info-circle"></i>
                                 </button>
                                 {% if lecture.is_editable %}

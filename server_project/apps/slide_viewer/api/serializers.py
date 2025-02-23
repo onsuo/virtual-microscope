@@ -12,6 +12,7 @@ class AnnotationSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "description",
+            "data",
             "slide",
             "author",
             "created_at",

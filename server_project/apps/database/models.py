@@ -21,11 +21,17 @@ class FolderManager(models.Manager):
             return self.all()
         folders = self.editable_base_folders(user)
         for folder in self.editable_base_folders(user):
-            folders |= folder.get_descendents()
+            folders |= self.descendents(folder)
         return folders
 
     def viewable(self, user):
         return self.all()
+
+    def descendents(self, folder):
+        folders = folder.subfolders.all()
+        for subfolder in folder.subfolders.all():
+            folders |= self.descendents(subfolder)
+        return folders
 
 
 class Folder(models.Model):
@@ -94,13 +100,6 @@ class Folder(models.Model):
         if user.is_admin():
             return True
         return self.get_group() in user.groups.all()
-
-    def get_descendents(self):
-        """Get all folders in this folder and its subfolders"""
-        folders = [self.subfolders.all()]
-        for subfolder in self.subfolders.all():
-            folders.extend(subfolder.get_descendents())
-        return folders
 
     def get_all_slides(self, recursive=False):
         """Get all slides in this folder and its subfolders"""
